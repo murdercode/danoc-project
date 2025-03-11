@@ -75,6 +75,15 @@ static const unsigned char PROGMEM logo_bmp[] =
 unsigned long previousMillis = 0; // variabile per salvare l'ultimo momento in cui la pagina è stata cambiata
 int page = 1;                     // variabile per tenere traccia della pagina corrente
 
+// Add these variables at the global scope, after existing variable declarations
+unsigned long lastActivityTime = 0;      // Last time any activity was detected
+const unsigned long idleTimeout = 10000; // 10 seconds in milliseconds
+bool isInIdleMode = false;               // Flag to track if device is in idle mode
+
+// Add these variables after the existing global variable declarations
+unsigned long lastDisplayRefreshTime = 0;          // Last time the display was refreshed
+const unsigned long displayRefreshInterval = 2000; // Update display every 2 seconds (2000ms)
+
 void setup()
 {
 
@@ -162,6 +171,9 @@ void setup()
    // delay(1000);
 
    // testanimate(logo_bmp, LOGO_WIDTH, LOGO_HEIGHT); // Animate bitmaps
+
+   // Initialize the lastActivityTime at startup
+   lastActivityTime = millis();
 }
 
 bool wasTapDetected = false;
@@ -170,34 +182,99 @@ float tapThreshold = 300;
 
 void loop()
 {
+   // Update BHY2 sensors
+   BHY2.update();
+
+   // Current time
+   unsigned long currentMillis = millis();
 
    // Tap Detection
    float currentAccel = accel.x() + accel.y() + accel.z();
 
-   // Se l'accelerazione è aumentata rapidamente rispetto alla lettura precedente,
-   // allora è stato rilevato un tap
+   // Detect tap based on acceleration change
+   bool tapDetected = false;
    if (currentAccel - previousAccel > tapThreshold)
    {
       Serial.println("Tap detected!");
+      lastActivityTime = currentMillis; // Reset activity timer on tap
+      tapDetected = true;
 
-      // Cambia la pagina quando viene rilevato un tap
-      if (page == 1)
+      if (isInIdleMode)
       {
-         printPage2();
-         page = 2;
+         // If in idle mode, first tap just wakes the device
+         exitIdleMode();
       }
       else
       {
-         printPage1();
-         page = 1;
+         // If already active, tap changes the page
+         if (page == 1)
+         {
+            printPage2();
+            page = 2;
+         }
+         else
+         {
+            printPage1();
+            page = 1;
+         }
       }
+
+      // Reset the display refresh timer after a tap action
+      lastDisplayRefreshTime = currentMillis;
    }
 
-   previousAccel = currentAccel; // Aggiorna l'accelerazione precedente
+   // Check if we should update the display (when not in idle mode)
+   if (!isInIdleMode && (currentMillis - lastDisplayRefreshTime >= displayRefreshInterval))
+   {
+      // Update the current page with fresh data
+      if (page == 1)
+      {
+         printPage1();
+      }
+      else
+      {
+         printPage2();
+      }
 
-   delay(300); // Piccolo ritardo per limitare l'output al serial monitor
+      // Reset the refresh timer
+      lastDisplayRefreshTime = currentMillis;
+   }
 
-   BHY2.update();
+   previousAccel = currentAccel; // Update previous acceleration value
+
+   // Check if we should enter idle mode
+   if (!isInIdleMode && (currentMillis - lastActivityTime > idleTimeout))
+   {
+      enterIdleMode();
+   }
+
+   delay(100); // Slight delay to stabilize readings
+}
+
+// New function to enter idle mode
+void enterIdleMode()
+{
+   Serial.println("Entering idle mode to save power");
+   display.clearDisplay();
+   display.display(); // Clear the display
+   isInIdleMode = true;
+}
+
+// New function to exit idle mode
+void exitIdleMode()
+{
+   Serial.println("Exiting idle mode");
+   isInIdleMode = false;
+
+   // Return to the current page
+   if (page == 1)
+   {
+      printPage1();
+   }
+   else
+   {
+      printPage2();
+   }
 }
 
 float calculateAltitude(float pressure, float seaLevelPressure = 1013.25)
@@ -245,10 +322,6 @@ void printPage1()
    // Steps
    display.print("P:");
    display.print(stepCounter.value());
-
-   // Birre
-   display.print(" - Birre:");
-   display.print(stepCounter.value() / 100);
 
    display.display();
 }
