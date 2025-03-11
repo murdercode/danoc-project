@@ -82,6 +82,8 @@ bool isInIdleMode = false;
 // Tap detection
 float previousAcceleration = 0.0;
 const float tapThreshold = 300.0;
+unsigned long lastSensorResetTime = 0;
+const unsigned long sensorResetInterval = 1800000; // 30 minutes in milliseconds
 
 // ===== SOGLIE DI PERICOLO =====
 // Definizioni delle soglie per i valori pericolosi dei gas
@@ -155,6 +157,13 @@ void loop()
    // Get current time
    unsigned long currentTime = millis();
 
+   // Reset sensors periodically to prevent drift
+   if (currentTime - lastSensorResetTime >= sensorResetInterval)
+   {
+      resetSensors();
+      lastSensorResetTime = currentTime;
+   }
+
    // ----- BLINK EFFECT FOR LED AND WARNING TEXT -----
    if (isDangerousCondition && (currentTime - lastLedToggleTime >= ledBlinkInterval))
    {
@@ -181,11 +190,11 @@ void loop()
    }
 
    // ----- TAP DETECTION -----
-   // Calculate acceleration magnitude
-   float currentAcceleration = accel.x() + accel.y() + accel.z();
+   // Calculate acceleration magnitude - using absolute values makes detection more robust
+   float currentAcceleration = abs(accel.x()) + abs(accel.y()) + abs(accel.z());
 
-   // Detect tap based on acceleration change
-   if (currentAcceleration - previousAcceleration > tapThreshold)
+   // Detect tap based on absolute magnitude and change
+   if (currentAcceleration > 300 && (currentAcceleration - previousAcceleration > tapThreshold))
    {
       Serial.println(F("Tap detected"));
       lastActivityTime = currentTime; // Reset activity timer
@@ -205,7 +214,7 @@ void loop()
       lastDisplayRefreshTime = currentTime;
    }
 
-   previousAcceleration = currentAcceleration;
+   previousAcceleration = currentAcceleration * 0.6 + previousAcceleration * 0.4; // Apply smoothing
 
    // ----- DISPLAY UPDATES -----
    // Update display when not in idle mode and refresh interval has passed
@@ -485,4 +494,23 @@ void checkDangerousMeasurements()
 bool isDangerous(float value, float threshold)
 {
    return value > threshold;
+}
+
+/**
+ * Resets sensors to prevent drift and ensure reliable operation
+ */
+void resetSensors()
+{
+   Serial.println(F("Resetting sensors"));
+   accel.begin();              // Reinitialize accelerometer
+   previousAcceleration = 0.0; // Reset baseline
+
+   // Quick recalibration
+   for (int i = 0; i < 10; i++)
+   {
+      BHY2.update();
+      float reading = abs(accel.x()) + abs(accel.y()) + abs(accel.z());
+      previousAcceleration = reading * 0.2 + previousAcceleration * 0.8;
+      delay(50);
+   }
 }
