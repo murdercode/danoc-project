@@ -198,18 +198,18 @@ void loop()
 
    // ----- TAP DETECTION -----
    // Calculate acceleration magnitude - using absolute values makes detection more robust
-   float currentAcceleration = abs(accel.x()) + abs(accel.y()) + abs(accel.z());
-   
+   float currentAcceleration = sqrt(accel.x() * accel.x() + accel.y() * accel.y() + accel.z() * accel.z());
+
    // Store in circular buffer
    accelHistory[accelHistoryIndex] = currentAcceleration;
    accelHistoryIndex = (accelHistoryIndex + 1) % TAP_BUFFER_SIZE;
-   
+
    // Check for tap pattern (not just magnitude change)
    if (detectTapPattern() && (currentTime - lastTapTime > TAP_COOLDOWN))
    {
-      Serial.println(F("Tap detected"));
+      Serial.println(F("*** Tap detected - changing page ***"));
       lastActivityTime = currentTime; // Reset activity timer
-      lastTapTime = currentTime; // Update last tap time for debouncing
+      lastTapTime = currentTime;      // Update last tap time for debouncing
 
       if (isInIdleMode)
       {
@@ -347,36 +347,48 @@ void displayPage2()
    // Air quality data
    Serial.println(bsec.toString()); // Debug to serial
 
+   // Gas reading with status indicator
+   bool gasIsDangerous = isDangerous(gas.value(), GAS_DANGER_THRESHOLD);
+   display.print(gasIsDangerous ? "! " : "✓ ");
    display.print("Gas: ");
    display.print(gas.value());
-   if (isDangerous(gas.value(), GAS_DANGER_THRESHOLD))
+   if (gasIsDangerous)
    {
       display.print(" ");
       display.print(DANGER_SYMBOL);
    }
    display.println("ppm");
 
+   // IAQ reading with status indicator
+   bool iaqIsDangerous = isDangerous(bsec.iaq(), IAQ_DANGER_THRESHOLD);
+   display.print(iaqIsDangerous ? "! " : "✓ ");
    display.print("IAQ: ");
    display.print(bsec.iaq());
-   if (isDangerous(bsec.iaq(), IAQ_DANGER_THRESHOLD))
+   if (iaqIsDangerous)
    {
       display.print(" ");
       display.print(DANGER_SYMBOL);
    }
    display.println();
 
+   // CO2 reading with status indicator
+   bool co2IsDangerous = isDangerous(bsec.co2_eq(), CO2_DANGER_THRESHOLD);
+   display.print(co2IsDangerous ? "! " : "✓ ");
    display.print("CO2: ");
    display.print(bsec.co2_eq());
-   if (isDangerous(bsec.co2_eq(), CO2_DANGER_THRESHOLD))
+   if (co2IsDangerous)
    {
       display.print(" ");
       display.print(DANGER_SYMBOL);
    }
    display.println("ppm");
 
+   // VOC reading with status indicator
+   bool vocIsDangerous = isDangerous(bsec.b_voc_eq(), VOC_DANGER_THRESHOLD);
+   display.print(vocIsDangerous ? "! " : "✓ ");
    display.print("VOC: ");
    display.print(bsec.b_voc_eq());
-   if (isDangerous(bsec.b_voc_eq(), VOC_DANGER_THRESHOLD))
+   if (vocIsDangerous)
    {
       display.print(" ");
       display.print(DANGER_SYMBOL);
@@ -516,9 +528,10 @@ void resetSensors()
    Serial.println(F("Resetting sensors"));
    accel.begin();              // Reinitialize accelerometer
    previousAcceleration = 0.0; // Reset baseline
-   
+
    // Reset tap detection history
-   for (int i = 0; i < TAP_BUFFER_SIZE; i++) {
+   for (int i = 0; i < TAP_BUFFER_SIZE; i++)
+   {
       accelHistory[i] = 0;
    }
    accelHistoryIndex = 0;
@@ -537,56 +550,98 @@ void resetSensors()
  * Detects a characteristic tap pattern in the acceleration data
  * @return true if a tap pattern is detected
  */
-bool detectTapPattern() 
+bool detectTapPattern()
 {
    // Need at least a few samples
-   if (accelHistoryIndex < TAP_BUFFER_SIZE - 1) {
+   if (accelHistoryIndex < TAP_BUFFER_SIZE - 1)
+   {
       return false;
    }
-   
+
    // Get index positions for analysis, accounting for circular buffer
    int current = accelHistoryIndex;
    int prev1 = (current - 1 + TAP_BUFFER_SIZE) % TAP_BUFFER_SIZE;
    int prev2 = (current - 2 + TAP_BUFFER_SIZE) % TAP_BUFFER_SIZE;
    int prev3 = (current - 3 + TAP_BUFFER_SIZE) % TAP_BUFFER_SIZE;
    int prev4 = (current - 4 + TAP_BUFFER_SIZE) % TAP_BUFFER_SIZE;
-   
+
    // Calculate the average acceleration as baseline
    float sum = 0;
-   for (int i = 0; i < TAP_BUFFER_SIZE; i++) {
+   for (int i = 0; i < TAP_BUFFER_SIZE; i++)
+   {
       sum += accelHistory[i];
    }
    float avgAccel = sum / TAP_BUFFER_SIZE;
-   
+
    // Calculate standard deviation to determine normal variation
    sum = 0;
-   for (int i = 0; i < TAP_BUFFER_SIZE; i++) {
+   for (int i = 0; i < TAP_BUFFER_SIZE; i++)
+   {
       sum += (accelHistory[i] - avgAccel) * (accelHistory[i] - avgAccel);
    }
    float stdDev = sqrt(sum / TAP_BUFFER_SIZE);
-   
-   // Tap pattern: sharp peak followed by quick decay
-   // 1. Check if we have a significant peak in the pattern
-   bool hasPeak = accelHistory[prev2] > accelHistory[prev3] && 
-                  accelHistory[prev2] > accelHistory[prev1] &&
-                  accelHistory[prev2] - avgAccel > 2.5 * stdDev;
-                   
-   // 2. Check if we have characteristic quick rise and fall (tap signature)
-   bool hasSharpRiseFall = (accelHistory[prev2] - accelHistory[prev4]) > tapThreshold &&
-                           (accelHistory[prev2] - accelHistory[current]) > tapThreshold / 2;
-   
-   // 3. Make sure the pattern isn't rhythmic (walking)
-   int walkingCounts = 0;
-   for (int i = 1; i < TAP_BUFFER_SIZE - 3; i++) {
+
+   // DEBUG: Print diagnostic values occasionally
+   static unsigned long lastDebugTime = 0;
+   unsigned long now = millis();
+   if (now - lastDebugTime > 5000)
+   { // Every 5 seconds
+      Serial.print("Accel avg: ");
+      Serial.print(avgAccel);
+      Serial.print(" stdDev: ");
+      Serial.println(stdDev);
+      lastDebugTime = now;
+   }
+
+   // Reduce strictness: Look for significant acceleration change
+   float peakValue = accelHistory[prev2];
+   float peakThreshold = 1.8 * stdDev; // Reduced from 2.5
+
+   // 1. Simpler peak detection
+   bool hasPeak = peakValue > avgAccel + peakThreshold;
+
+   // 2. Check for rapid change (tap signature)
+   bool hasRapidChange = false;
+
+   // Look for changes in recent history
+   for (int i = 1; i < TAP_BUFFER_SIZE - 1; i++)
+   {
       int idx = (current - i + TAP_BUFFER_SIZE) % TAP_BUFFER_SIZE;
-      int prevIdx = (current - i - 3 + TAP_BUFFER_SIZE) % TAP_BUFFER_SIZE;
-      
-      // Count patterns that might be from walking (rhythmic spikes)
-      if (abs(accelHistory[idx] - accelHistory[prevIdx]) < stdDev * 0.5) {
-         walkingCounts++;
+      int nextIdx = (idx + 1) % TAP_BUFFER_SIZE;
+
+      // If we find a significant jump between consecutive readings
+      if (abs(accelHistory[nextIdx] - accelHistory[idx]) > tapThreshold / 2)
+      {
+         hasRapidChange = true;
+         break;
       }
    }
-   
-   // If we have a sharp peak with quick rise and fall, and it's not a walking pattern
-   return hasPeak && hasSharpRiseFall && (walkingCounts < 3);
+
+   // Alternative simple detection as fallback - detect a single spike
+   bool hasSpike = false;
+   for (int i = 0; i < TAP_BUFFER_SIZE; i++)
+   {
+      if (accelHistory[i] > avgAccel + tapThreshold / 2)
+      {
+         hasSpike = true;
+         break;
+      }
+   }
+
+   // If either the pattern detection or the spike detection triggers
+   bool detected = (hasPeak && hasRapidChange) || hasSpike;
+
+   if (detected)
+   {
+      // When a tap is detected, print the values for debugging
+      Serial.println("TAP DETECTED!");
+      Serial.print("Peak: ");
+      Serial.print(peakValue);
+      Serial.print(" Avg: ");
+      Serial.print(avgAccel);
+      Serial.print(" Threshold: ");
+      Serial.println(avgAccel + peakThreshold);
+   }
+
+   return detected;
 }
