@@ -292,16 +292,6 @@ void displayPage1()
    display.print(humidity.value());
    display.println("%");
 
-   display.print("Gas: ");
-   display.print(gas.value());
-   // Aggiungi simbolo di pericolo se necessario
-   if (isDangerous(gas.value(), GAS_DANGER_THRESHOLD))
-   {
-      display.print(" ");
-      display.print(DANGER_SYMBOL);
-   }
-   display.println("ppm");
-
    float altitude = calculateAltitude(barometer.value());
    display.print("Alt: ");
    display.print(altitude);
@@ -313,13 +303,6 @@ void displayPage1()
 
    display.print("Passi: ");
    display.println(stepCounter.value());
-
-   // Se c'è una condizione pericolosa, mostra un avviso lampeggiante
-   if (isDangerousCondition && blinkState)
-   {
-      display.println("");
-      display.println("ATTENZIONE GAS ELEVATI!");
-   }
 
    display.display();
 }
@@ -384,7 +367,7 @@ void displayPage2()
    {
       display.setTextSize(1);
       display.println("");
-      display.println("ATTENZIONE GAS ELEVATI!");
+      display.println("PERICOLO! GAS!");
    }
 
    display.display();
