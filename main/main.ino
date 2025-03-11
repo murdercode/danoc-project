@@ -85,6 +85,13 @@ const float tapThreshold = 300.0;
 unsigned long lastSensorResetTime = 0;
 const unsigned long sensorResetInterval = 1800000; // 30 minutes in milliseconds
 
+// Enhanced tap detection variables
+const int TAP_BUFFER_SIZE = 10;
+float accelHistory[TAP_BUFFER_SIZE]; // Buffer to store recent acceleration values
+int accelHistoryIndex = 0;
+unsigned long lastTapTime = 0;
+const unsigned long TAP_COOLDOWN = 500; // Minimum ms between tap detections
+
 // ===== SOGLIE DI PERICOLO =====
 // Definizioni delle soglie per i valori pericolosi dei gas
 #define IAQ_DANGER_THRESHOLD 300  // IAQ > 300 è considerato dannoso
@@ -192,12 +199,17 @@ void loop()
    // ----- TAP DETECTION -----
    // Calculate acceleration magnitude - using absolute values makes detection more robust
    float currentAcceleration = abs(accel.x()) + abs(accel.y()) + abs(accel.z());
-
-   // Detect tap based on absolute magnitude and change
-   if (currentAcceleration > 300 && (currentAcceleration - previousAcceleration > tapThreshold))
+   
+   // Store in circular buffer
+   accelHistory[accelHistoryIndex] = currentAcceleration;
+   accelHistoryIndex = (accelHistoryIndex + 1) % TAP_BUFFER_SIZE;
+   
+   // Check for tap pattern (not just magnitude change)
+   if (detectTapPattern() && (currentTime - lastTapTime > TAP_COOLDOWN))
    {
       Serial.println(F("Tap detected"));
       lastActivityTime = currentTime; // Reset activity timer
+      lastTapTime = currentTime; // Update last tap time for debouncing
 
       if (isInIdleMode)
       {
@@ -504,6 +516,12 @@ void resetSensors()
    Serial.println(F("Resetting sensors"));
    accel.begin();              // Reinitialize accelerometer
    previousAcceleration = 0.0; // Reset baseline
+   
+   // Reset tap detection history
+   for (int i = 0; i < TAP_BUFFER_SIZE; i++) {
+      accelHistory[i] = 0;
+   }
+   accelHistoryIndex = 0;
 
    // Quick recalibration
    for (int i = 0; i < 10; i++)
@@ -513,4 +531,62 @@ void resetSensors()
       previousAcceleration = reading * 0.2 + previousAcceleration * 0.8;
       delay(50);
    }
+}
+
+/**
+ * Detects a characteristic tap pattern in the acceleration data
+ * @return true if a tap pattern is detected
+ */
+bool detectTapPattern() 
+{
+   // Need at least a few samples
+   if (accelHistoryIndex < TAP_BUFFER_SIZE - 1) {
+      return false;
+   }
+   
+   // Get index positions for analysis, accounting for circular buffer
+   int current = accelHistoryIndex;
+   int prev1 = (current - 1 + TAP_BUFFER_SIZE) % TAP_BUFFER_SIZE;
+   int prev2 = (current - 2 + TAP_BUFFER_SIZE) % TAP_BUFFER_SIZE;
+   int prev3 = (current - 3 + TAP_BUFFER_SIZE) % TAP_BUFFER_SIZE;
+   int prev4 = (current - 4 + TAP_BUFFER_SIZE) % TAP_BUFFER_SIZE;
+   
+   // Calculate the average acceleration as baseline
+   float sum = 0;
+   for (int i = 0; i < TAP_BUFFER_SIZE; i++) {
+      sum += accelHistory[i];
+   }
+   float avgAccel = sum / TAP_BUFFER_SIZE;
+   
+   // Calculate standard deviation to determine normal variation
+   sum = 0;
+   for (int i = 0; i < TAP_BUFFER_SIZE; i++) {
+      sum += (accelHistory[i] - avgAccel) * (accelHistory[i] - avgAccel);
+   }
+   float stdDev = sqrt(sum / TAP_BUFFER_SIZE);
+   
+   // Tap pattern: sharp peak followed by quick decay
+   // 1. Check if we have a significant peak in the pattern
+   bool hasPeak = accelHistory[prev2] > accelHistory[prev3] && 
+                  accelHistory[prev2] > accelHistory[prev1] &&
+                  accelHistory[prev2] - avgAccel > 2.5 * stdDev;
+                   
+   // 2. Check if we have characteristic quick rise and fall (tap signature)
+   bool hasSharpRiseFall = (accelHistory[prev2] - accelHistory[prev4]) > tapThreshold &&
+                           (accelHistory[prev2] - accelHistory[current]) > tapThreshold / 2;
+   
+   // 3. Make sure the pattern isn't rhythmic (walking)
+   int walkingCounts = 0;
+   for (int i = 1; i < TAP_BUFFER_SIZE - 3; i++) {
+      int idx = (current - i + TAP_BUFFER_SIZE) % TAP_BUFFER_SIZE;
+      int prevIdx = (current - i - 3 + TAP_BUFFER_SIZE) % TAP_BUFFER_SIZE;
+      
+      // Count patterns that might be from walking (rhythmic spikes)
+      if (abs(accelHistory[idx] - accelHistory[prevIdx]) < stdDev * 0.5) {
+         walkingCounts++;
+      }
+   }
+   
+   // If we have a sharp peak with quick rise and fall, and it's not a walking pattern
+   return hasPeak && hasSharpRiseFall && (walkingCounts < 3);
 }
