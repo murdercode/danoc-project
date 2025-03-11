@@ -76,7 +76,7 @@ const unsigned long displayRefreshInterval = 2000; // 2 seconds refresh
 
 // Power management
 unsigned long lastActivityTime = 0;
-const unsigned long idleTimeout = 10000; // 10 seconds idle timeout
+const unsigned long idleTimeout = 30000; // 30 seconds idle timeout
 bool isInIdleMode = false;
 
 // Tap detection
