@@ -1,303 +1,284 @@
 /**************************************************************************
-
+ * DANOC Project - Environmental Monitoring Device
+ * Uses Nicla Sense ME with BHY2 sensors and OLED display
  **************************************************************************/
 
+// ===== LIBRARIES =====
 #include <SPI.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-
 #include "Nicla_System.h"
-
 #include "Arduino_BHY2.h"
 
+// ===== DISPLAY CONFIGURATION =====
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET -1
+#define SCREEN_ADDRESS 0x3C
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// ===== LOGO CONFIGURATION =====
+#define LOGO_HEIGHT 64
+#define LOGO_WIDTH 64
+// Logo bitmap data
+static const unsigned char PROGMEM logo_bmp[] = {
+    0x07, 0x83, 0xf0, 0x3f, 0x0f, 0x8c, 0x00, 0x30, 0x03, 0x83, 0xe0, 0x0f, 0x07, 0x8c, 0x00, 0x30,
+    0x03, 0x83, 0xc0, 0x07, 0x07, 0x8c, 0x00, 0x30, 0x03, 0x03, 0x83, 0x07, 0x03, 0x8f, 0xc3, 0xf0,
+    0x03, 0x03, 0x87, 0x87, 0x01, 0x8f, 0xc3, 0xf0, 0x11, 0x03, 0x87, 0xc3, 0x01, 0x8f, 0xc3, 0xf0,
+    0x11, 0x23, 0x87, 0xc3, 0x00, 0x0f, 0xc3, 0xf0, 0x10, 0x23, 0x87, 0xc3, 0x08, 0x0f, 0xc3, 0xf0,
+    0x18, 0x23, 0x87, 0x87, 0x08, 0x0f, 0xc3, 0xf0, 0x18, 0x23, 0x87, 0x87, 0x0c, 0x0f, 0xc3, 0xf0,
+    0x18, 0x63, 0xc0, 0x07, 0x0e, 0x0f, 0xc3, 0xf0, 0x18, 0x63, 0xe0, 0x0f, 0x0e, 0x0f, 0xc3, 0xf0,
+    0x1c, 0x63, 0xf0, 0x1f, 0x0f, 0x0f, 0xc3, 0xf0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xf8, 0x0f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xe0, 0x03, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xc7, 0xf1, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe, 0x0f, 0xf9, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xf0, 0x1f, 0xf8, 0xff, 0xff, 0xff, 0xff, 0xff, 0xc1, 0xff, 0xfc, 0x3f, 0xff,
+    0xff, 0xff, 0xff, 0x8f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x8f, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0x9f, 0xff, 0xff, 0xcf, 0xff, 0xff, 0xff, 0xff, 0x9f, 0xff, 0xff, 0xcf, 0xff,
+    0xff, 0xff, 0xff, 0x9f, 0xff, 0xff, 0xcf, 0xff, 0xff, 0xff, 0xff, 0x9f, 0xff, 0xff, 0x8f, 0xff,
+    0xff, 0xff, 0xff, 0x9f, 0x00, 0x00, 0x1f, 0xff, 0xff, 0xff, 0xff, 0xcf, 0x00, 0x00, 0x3f, 0xff,
+    0xff, 0xff, 0xff, 0xcf, 0x00, 0x00, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xc7, 0x00, 0x00, 0x7f, 0xff,
+    0xff, 0xff, 0xff, 0xc7, 0x10, 0x84, 0x0f, 0xff, 0xff, 0xff, 0xff, 0xe7, 0x31, 0x8e, 0x03, 0xff,
+    0xff, 0xff, 0xff, 0xe6, 0x31, 0x8e, 0x03, 0xff, 0xff, 0xff, 0xff, 0xe0, 0x31, 0x8e, 0x61, 0xff,
+    0xff, 0xff, 0xff, 0xf0, 0x31, 0x8e, 0x61, 0xff, 0xff, 0xff, 0xff, 0xff, 0x31, 0x8e, 0x61, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0x31, 0x8e, 0x61, 0xff, 0xff, 0xff, 0xff, 0xff, 0x31, 0x8e, 0x61, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0x31, 0x8e, 0x61, 0xff, 0xff, 0xff, 0xff, 0xff, 0x31, 0x8e, 0x61, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0x31, 0x8e, 0x71, 0xff, 0xff, 0xff, 0xff, 0xff, 0x31, 0x8e, 0x61, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0x11, 0x84, 0x03, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01, 0x80, 0x07, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x7f, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x7f, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0x07, 0x07, 0x00, 0x60, 0x03, 0x00, 0xfe, 0x07, 0x07, 0x07, 0x00, 0x60, 0x03, 0x00, 0x3c, 0x03,
+    0x07, 0x07, 0x00, 0x60, 0x03, 0x00, 0x38, 0x01, 0x03, 0x07, 0x1f, 0xfc, 0x3f, 0x1e, 0x30, 0xe0,
+    0x02, 0x07, 0x0f, 0xfe, 0x3f, 0x1c, 0x30, 0xf0, 0x12, 0x07, 0x00, 0x7e, 0x3f, 0x00, 0x30, 0xf0,
+    0x10, 0x47, 0x00, 0x7e, 0x3f, 0x00, 0xf1, 0xf0, 0x10, 0x47, 0x1f, 0xfe, 0x3f, 0x10, 0x70, 0xf0,
+    0x10, 0x47, 0x1f, 0xfe, 0x3f, 0x18, 0x70, 0xf1, 0x18, 0x47, 0x00, 0x7e, 0x3f, 0x1c, 0x38, 0x01,
+    0x18, 0xc7, 0x00, 0x3e, 0x3f, 0x1c, 0x1c, 0x03, 0x18, 0xc7, 0x00, 0x3e, 0x3f, 0x1e, 0x1e, 0x07};
+
+// ===== SENSOR DEFINITIONS =====
 Sensor temperature(SENSOR_ID_TEMP);
 Sensor humidity(SENSOR_ID_HUM);
 Sensor gas(SENSOR_ID_GAS);
 Sensor barometer(SENSOR_ID_BARO);
 Sensor stepCounter(SENSOR_ID_STC);
-
 SensorXYZ accel(SENSOR_ID_ACC);
+SensorBSEC bsec(SENSOR_ID_BSEC);
 
-SensorBSEC bsec(SENSOR_ID_BSEC); // 4-in-1 sensor.
+// ===== GLOBAL VARIABLES =====
+// Version info
+#define APP_VERSION "0.5"
 
-#define SCREEN_WIDTH 128 // OLED display width, in pixels
-#define SCREEN_HEIGHT 64 // OLED display height, in pixels
+// Display state tracking
+int currentPage = 1;
+unsigned long lastDisplayRefreshTime = 0;
+const unsigned long displayRefreshInterval = 2000; // 2 seconds refresh
 
-// Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
-// The pins for I2C are defined by the Wire-library.
-// On an arduino UNO:       A4(SDA), A5(SCL) / SDA 8 (A0) | SCL 7 (A1)
-// On an arduino MEGA 2560: 20(SDA), 21(SCL)
-// On an arduino LEONARDO:   2(SDA),  3(SCL), ...
-#define OLED_RESET -1       // Reset pin # (or -1 if sharing Arduino reset pin)
-#define SCREEN_ADDRESS 0x3C ///< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+// Power management
+unsigned long lastActivityTime = 0;
+const unsigned long idleTimeout = 30000; // 30 seconds idle timeout
+bool isInIdleMode = false;
 
-#define NUMFLAKES 10 // Number of snowflakes in the animation example
+// Tap detection
+float previousAcceleration = 0.0;
+const float tapThreshold = 300.0;
 
-#define LOGO_HEIGHT 64
-#define LOGO_WIDTH 64
-// Made with https://pkolt.github.io/bitmap_editor/
-static const unsigned char PROGMEM logo_bmp[] =
-    {0x07, 0x83, 0xf0, 0x3f, 0x0f, 0x8c, 0x00, 0x30, 0x03, 0x83, 0xe0, 0x0f, 0x07, 0x8c, 0x00, 0x30,
-     0x03, 0x83, 0xc0, 0x07, 0x07, 0x8c, 0x00, 0x30, 0x03, 0x03, 0x83, 0x07, 0x03, 0x8f, 0xc3, 0xf0,
-     0x03, 0x03, 0x87, 0x87, 0x01, 0x8f, 0xc3, 0xf0, 0x11, 0x03, 0x87, 0xc3, 0x01, 0x8f, 0xc3, 0xf0,
-     0x11, 0x23, 0x87, 0xc3, 0x00, 0x0f, 0xc3, 0xf0, 0x10, 0x23, 0x87, 0xc3, 0x08, 0x0f, 0xc3, 0xf0,
-     0x18, 0x23, 0x87, 0x87, 0x08, 0x0f, 0xc3, 0xf0, 0x18, 0x23, 0x87, 0x87, 0x0c, 0x0f, 0xc3, 0xf0,
-     0x18, 0x63, 0xc0, 0x07, 0x0e, 0x0f, 0xc3, 0xf0, 0x18, 0x63, 0xe0, 0x0f, 0x0e, 0x0f, 0xc3, 0xf0,
-     0x1c, 0x63, 0xf0, 0x1f, 0x0f, 0x0f, 0xc3, 0xf0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-     0xff, 0xff, 0xff, 0xf8, 0x0f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xe0, 0x03, 0xff, 0xff, 0xff,
-     0xff, 0xff, 0xff, 0xc7, 0xf1, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe, 0x0f, 0xf9, 0xff, 0xff, 0xff,
-     0xff, 0xff, 0xf0, 0x1f, 0xf8, 0xff, 0xff, 0xff, 0xff, 0xff, 0xc1, 0xff, 0xfc, 0x3f, 0xff, 0xff,
-     0xff, 0xff, 0x8f, 0xff, 0xff, 0x1f, 0xff, 0xff, 0xff, 0xff, 0x9f, 0xff, 0xff, 0x8f, 0xff, 0xff,
-     0xff, 0xff, 0x9f, 0xff, 0xff, 0xcf, 0xff, 0xff, 0xff, 0xff, 0x9f, 0xff, 0xff, 0xcf, 0xff, 0xff,
-     0xff, 0xff, 0x9f, 0xff, 0xff, 0x8f, 0xff, 0xff, 0xff, 0xff, 0x9f, 0x00, 0x00, 0x1f, 0xff, 0xff,
-     0xff, 0xff, 0xcf, 0x00, 0x00, 0x3f, 0xff, 0xff, 0xff, 0xff, 0xcf, 0x00, 0x00, 0x7f, 0xff, 0xff,
-     0xff, 0xff, 0xc7, 0x00, 0x00, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xc7, 0x10, 0x84, 0x0f, 0xff, 0xff,
-     0xff, 0xff, 0xe7, 0x31, 0x8e, 0x03, 0xff, 0xff, 0xff, 0xff, 0xe6, 0x31, 0x8e, 0x03, 0xff, 0xff,
-     0xff, 0xff, 0xe0, 0x31, 0x8e, 0x61, 0xff, 0xff, 0xff, 0xff, 0xf0, 0x31, 0x8e, 0x61, 0xff, 0xff,
-     0xff, 0xff, 0xff, 0x31, 0x8e, 0x61, 0xff, 0xff, 0xff, 0xff, 0xff, 0x31, 0x8e, 0x61, 0xff, 0xff,
-     0xff, 0xff, 0xff, 0x31, 0x8e, 0x61, 0xff, 0xff, 0xff, 0xff, 0xff, 0x31, 0x8e, 0x61, 0xff, 0xff,
-     0xff, 0xff, 0xff, 0x31, 0x8e, 0x61, 0xff, 0xff, 0xff, 0xff, 0xff, 0x31, 0x8e, 0x71, 0xff, 0xff,
-     0xff, 0xff, 0xff, 0x31, 0x8e, 0x61, 0xff, 0xff, 0xff, 0xff, 0xff, 0x11, 0x84, 0x03, 0xff, 0xff,
-     0xff, 0xff, 0xff, 0x01, 0x80, 0x07, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x7f, 0xff, 0xff,
-     0xff, 0xff, 0xff, 0x00, 0x00, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x7f, 0xff, 0xff,
-     0xff, 0xff, 0xff, 0x00, 0x00, 0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0xff, 0xff, 0xff,
-     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-     0x07, 0x07, 0x00, 0x60, 0x03, 0x00, 0xfe, 0x07, 0x07, 0x07, 0x00, 0x60, 0x03, 0x00, 0x3c, 0x03,
-     0x07, 0x07, 0x00, 0x60, 0x03, 0x00, 0x38, 0x01, 0x03, 0x07, 0x1f, 0xfc, 0x3f, 0x1e, 0x30, 0xe0,
-     0x02, 0x07, 0x0f, 0xfe, 0x3f, 0x1c, 0x30, 0xf0, 0x12, 0x07, 0x00, 0x7e, 0x3f, 0x00, 0x30, 0xf0,
-     0x10, 0x47, 0x00, 0x7e, 0x3f, 0x00, 0xf1, 0xf0, 0x10, 0x47, 0x1f, 0xfe, 0x3f, 0x10, 0x70, 0xf0,
-     0x10, 0x47, 0x1f, 0xfe, 0x3f, 0x18, 0x70, 0xf1, 0x18, 0x47, 0x00, 0x7e, 0x3f, 0x1c, 0x38, 0x01,
-     0x18, 0xc7, 0x00, 0x3e, 0x3f, 0x1c, 0x1c, 0x03, 0x18, 0xc7, 0x00, 0x3e, 0x3f, 0x1e, 0x1e, 0x07};
+// ===== SOGLIE DI PERICOLO =====
+// Definizioni delle soglie per i valori pericolosi dei gas
+#define IAQ_DANGER_THRESHOLD 300  // IAQ > 300 è considerato dannoso
+#define CO2_DANGER_THRESHOLD 2000 // CO2 > 2000 ppm può causare mal di testa e difficoltà di concentrazione
+#define VOC_DANGER_THRESHOLD 5    // VOC > 5 ppm è considerato pericoloso
+#define GAS_DANGER_THRESHOLD 1000 // Valore generico di soglia per gas
+#define DANGER_SYMBOL "!"         // Simbolo per indicare pericolo sul display
 
-unsigned long previousMillis = 0; // variabile per salvare l'ultimo momento in cui la pagina è stata cambiata
-int page = 1;                     // variabile per tenere traccia della pagina corrente
+// Flag per lo stato di pericolo
+bool isDangerousCondition = false;
 
-// Add these variables at the global scope, after existing variable declarations
-unsigned long lastActivityTime = 0;      // Last time any activity was detected
-const unsigned long idleTimeout = 10000; // 10 seconds in milliseconds
-bool isInIdleMode = false;               // Flag to track if device is in idle mode
+// Variabili per il lampeggio del testo di avviso
+unsigned long lastBlinkTime = 0;
+const unsigned long blinkInterval = 500; // Lampeggia ogni 500ms (2 volte al secondo)
+bool blinkState = true;
 
-// Add these variables after the existing global variable declarations
-unsigned long lastDisplayRefreshTime = 0;          // Last time the display was refreshed
-const unsigned long displayRefreshInterval = 2000; // Update display every 2 seconds (2000ms)
+// Variabile per reset periodico del rilevamento tap
+unsigned long lastTapResetTime = 0;
+const unsigned long tapResetInterval = 60000; // Reset ogni minuto
 
+/**
+ * Setup function - initializes hardware and sensors
+ */
 void setup()
 {
-
+   // Initialize serial communication
    Serial.begin(115200);
+
+   // Initialize sensors
    BHY2.begin();
-
    bsec.begin();
-
    temperature.begin();
    humidity.begin();
    gas.begin();
    barometer.begin();
    stepCounter.begin();
-
    accel.begin();
 
+   // Initialize Nicla board
    nicla::begin();
 
-   // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
+   // Initialize display
    if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS))
    {
-      Serial.println(F("SSD1306 allocation failed"));
+      Serial.println(F("SSD1306 display initialization failed"));
       for (;;)
-         ; // Don't proceed, loop forever
+         ; // Don't proceed if display fails
    }
 
-   // Show initial display buffer contents on the screen --
-   // the library initializes this with an Adafruit splash screen.
-   // display.display();
-   // delay(2000); // Pause for 2 seconds
+   // Show logo/splash screen
+   showSplashScreen();
 
-   // Clear the buffer
-   display.clearDisplay();
-
-   // Draw a single pixel in white
-   display.drawPixel(10, 10, SSD1306_WHITE);
-
-   // Show the display buffer on the screen. You MUST call display() after
-   // drawing commands to make them visible on screen!
-   display.display();
-
-   testdrawbitmap();
-
-   delay(2000);
-
-   testscrolltext();
-
-   // printSensorsValues();
-   // delay(2000);
-   // display.display() is NOT necessary after every single drawing command,
-   // unless that's what you want...rather, you can batch up a bunch of
-   // drawing operations and then update the screen all at once by calling
-   // display.display(). These examples demonstrate both approaches...
-
-   // testdrawline(); // Draw many lines
-
-   // testdrawrect(); // Draw rectangles (outlines)
-
-   // testfillrect(); // Draw rectangles (filled)
-
-   // testdrawcircle(); // Draw circles (outlines)
-
-   // testfillcircle(); // Draw circles (filled)
-
-   // testdrawroundrect(); // Draw rounded rectangles (outlines)
-
-   // testfillroundrect(); // Draw rounded rectangles (filled)
-
-   // testdrawtriangle(); // Draw triangles (outlines)
-
-   // testfilltriangle(); // Draw triangles (filled)
-
-   // testdrawchar(); // Draw characters of the default font
-
-   // testdrawstyles(); // Draw 'stylized' characters
-
-   // testscrolltext(); // Draw scrolling text
-
-   // testdrawbitmap(); // Draw a small bitmap image
-
-   // // Invert and restore display, pausing in-between
-   // display.invertDisplay(true);
-   // delay(1000);
-   // display.invertDisplay(false);
-   // delay(1000);
-
-   // testanimate(logo_bmp, LOGO_WIDTH, LOGO_HEIGHT); // Animate bitmaps
-
-   // Initialize the lastActivityTime at startup
+   // Initialize activity tracking
    lastActivityTime = millis();
+
+   // Inizializza il LED RGB della Nicla
+   pinMode(LED_BUILTIN, OUTPUT);
 }
 
-bool wasTapDetected = false;
-float previousAccel = 0.0;
-float tapThreshold = 300;
-
+/**
+ * Main loop - handles sensor readings, tap detection, and display updates
+ */
 void loop()
 {
-   // Update BHY2 sensors
+   // Update sensors
    BHY2.update();
 
-   // Current time
-   unsigned long currentMillis = millis();
+   // Get current time
+   unsigned long currentTime = millis();
 
-   // Tap Detection
-   float currentAccel = accel.x() + accel.y() + accel.z();
+   // ----- TAP DETECTION -----
+   // Reset periodicamente la baseline dell'accelerazione per evitare drift
+   if (currentTime - lastTapResetTime >= tapResetInterval)
+   {
+      previousAcceleration = accel.x() + accel.y() + accel.z() - 10.0; // Reset con margine
+      lastTapResetTime = currentTime;
+      Serial.println(F("Tap detection reset"));
+   }
+
+   // Calculate acceleration magnitude
+   float currentAcceleration = accel.x() + accel.y() + accel.z();
 
    // Detect tap based on acceleration change
-   bool tapDetected = false;
-   if (currentAccel - previousAccel > tapThreshold)
+   if (currentAcceleration - previousAcceleration > tapThreshold)
    {
-      Serial.println("Tap detected!");
-      lastActivityTime = currentMillis; // Reset activity timer on tap
-      tapDetected = true;
+      Serial.println(F("Tap detected"));
+      lastActivityTime = currentTime; // Reset activity timer
 
       if (isInIdleMode)
       {
-         // If in idle mode, first tap just wakes the device
+         // Wake device from idle mode
          exitIdleMode();
       }
       else
       {
-         // If already active, tap changes the page
-         if (page == 1)
-         {
-            printPage2();
-            page = 2;
-         }
-         else
-         {
-            printPage1();
-            page = 1;
-         }
+         // Change page
+         togglePage();
       }
 
-      // Reset the display refresh timer after a tap action
-      lastDisplayRefreshTime = currentMillis;
+      // Reset display refresh timer after tap action
+      lastDisplayRefreshTime = currentTime;
    }
 
-   // Check if we should update the display (when not in idle mode)
-   if (!isInIdleMode && (currentMillis - lastDisplayRefreshTime >= displayRefreshInterval))
+   previousAcceleration = currentAcceleration;
+
+   // ----- BLINK EFFECT -----
+   // Aggiorna lo stato del lampeggio
+   if (isDangerousCondition && currentTime - lastBlinkTime >= blinkInterval)
    {
-      // Update the current page with fresh data
-      if (page == 1)
-      {
-         printPage1();
-      }
-      else
-      {
-         printPage2();
-      }
+      blinkState = !blinkState;
+      lastBlinkTime = currentTime;
 
-      // Reset the refresh timer
-      lastDisplayRefreshTime = currentMillis;
+      // Aggiorna il display solo se il blink cambia e siamo in modalità attiva
+      if (!isInIdleMode)
+      {
+         updateCurrentPage();
+      }
    }
 
-   previousAccel = currentAccel; // Update previous acceleration value
+   // ----- DISPLAY UPDATES -----
+   // Update display when not in idle mode and refresh interval has passed
+   if (!isInIdleMode && (currentTime - lastDisplayRefreshTime >= displayRefreshInterval))
+   {
+      updateCurrentPage();
+      lastDisplayRefreshTime = currentTime;
+   }
 
-   // Check if we should enter idle mode
-   if (!isInIdleMode && (currentMillis - lastActivityTime > idleTimeout))
+   // ----- POWER MANAGEMENT -----
+   // Enter idle mode after timeout period
+   if (!isInIdleMode && (currentTime - lastActivityTime > idleTimeout))
    {
       enterIdleMode();
    }
 
-   delay(100); // Slight delay to stabilize readings
+   // Check for dangerous conditions
+   checkDangerousMeasurements();
+
+   delay(100); // Stabilize readings
 }
 
-// New function to enter idle mode
-void enterIdleMode()
+/**
+ * Toggles between page 1 and page 2
+ */
+void togglePage()
 {
-   Serial.println("Entering idle mode to save power");
-   display.clearDisplay();
-   display.display(); // Clear the display
-   isInIdleMode = true;
-}
-
-// New function to exit idle mode
-void exitIdleMode()
-{
-   Serial.println("Exiting idle mode");
-   isInIdleMode = false;
-
-   // Return to the current page
-   if (page == 1)
+   if (currentPage == 1)
    {
-      printPage1();
+      currentPage = 2;
    }
    else
    {
-      printPage2();
+      currentPage = 1;
+   }
+   updateCurrentPage();
+}
+
+/**
+ * Updates display with current page content
+ */
+void updateCurrentPage()
+{
+   if (currentPage == 1)
+   {
+      displayPage1();
+   }
+   else
+   {
+      displayPage2();
    }
 }
 
+/**
+ * Calculates altitude from barometric pressure
+ */
 float calculateAltitude(float pressure, float seaLevelPressure = 1013.25)
 {
    return 44330.0 * (1.0 - pow(pressure / seaLevelPressure, 0.1903));
 }
 
-// Print sensors values on the screen
-void printPage1()
+/**
+ * Displays environmental data (page 1)
+ */
+void displayPage1()
 {
    display.clearDisplay();
    display.setTextSize(1);
    display.setTextColor(SSD1306_WHITE);
    display.setCursor(0, 0);
 
-   // Stampa il nome del programma nelle prime due righe
-   display.print("DANOC v0.2");
-   // Simula indicatore batteria
+   // Header
+   display.print("DANOC v");
+   display.print(APP_VERSION);
    display.println(" - 1/2");
-
    display.println("-----------------");
 
-   // Stampa i valori dei sensori in una tabella
+   // Sensor data
    display.print("Temp: ");
    display.print(temperature.value());
    display.println("C");
@@ -306,384 +287,212 @@ void printPage1()
    display.print(humidity.value());
    display.println("%");
 
-   display.print("Gas: ");
-   display.print(gas.value());
-   display.println("ppm");
-
-   float alt = calculateAltitude(barometer.value());
+   float altitude = calculateAltitude(barometer.value());
    display.print("Alt: ");
-   display.print(alt);
+   display.print(altitude);
    display.println("m");
 
    display.print("Baro: ");
    display.print(barometer.value());
    display.println("hPa");
 
-   // Steps
-   display.print("P:");
-   display.print(stepCounter.value());
+   display.print("Passi: ");
+   display.println(stepCounter.value());
+
+   // Se c'è una condizione pericolosa, mostra un avviso lampeggiante
+   if (isDangerousCondition && blinkState)
+   {
+      display.println("");
+      display.println("ATTENZIONE GAS ELEVATI!");
+   }
 
    display.display();
 }
 
-void printPage2()
+/**
+ * Displays air quality data (page 2)
+ */
+void displayPage2()
 {
    display.clearDisplay();
    display.setTextSize(1);
    display.setTextColor(SSD1306_WHITE);
    display.setCursor(0, 0);
 
-   // Stampa il nome del programma nelle prime due righe
-   display.print("DANOC v0.2");
-   // Simula indicatore batteria
+   // Header
+   display.print("DANOC v");
+   display.print(APP_VERSION);
    display.println(" - 2/2");
-
    display.println("-----------------");
 
-   // Stampa i valori dei sensori in una tabella
-   // display.print(bsec.toString());
-   Serial.println(bsec.toString());
+   // Air quality data
+   Serial.println(bsec.toString()); // Debug to serial
 
    display.print("Gas: ");
-   display.println(gas.value());
+   display.print(gas.value());
+   if (isDangerous(gas.value(), GAS_DANGER_THRESHOLD))
+   {
+      display.print(" ");
+      display.print(DANGER_SYMBOL);
+   }
+   display.println("ppm");
 
    display.print("IAQ: ");
-   display.println(bsec.iaq());
+   display.print(bsec.iaq());
+   if (isDangerous(bsec.iaq(), IAQ_DANGER_THRESHOLD))
+   {
+      display.print(" ");
+      display.print(DANGER_SYMBOL);
+   }
+   display.println();
 
    display.print("CO2: ");
-   display.println(bsec.co2_eq());
+   display.print(bsec.co2_eq());
+   if (isDangerous(bsec.co2_eq(), CO2_DANGER_THRESHOLD))
+   {
+      display.print(" ");
+      display.print(DANGER_SYMBOL);
+   }
+   display.println("ppm");
 
    display.print("VOC: ");
-   display.println(bsec.b_voc_eq());
-
-   display.display();
-}
-
-void testdrawline()
-{
-   int16_t i;
-
-   display.clearDisplay(); // Clear display buffer
-
-   for (i = 0; i < display.width(); i += 4)
+   display.print(bsec.b_voc_eq());
+   if (isDangerous(bsec.b_voc_eq(), VOC_DANGER_THRESHOLD))
    {
-      display.drawLine(0, 0, i, display.height() - 1, SSD1306_WHITE);
-      display.display(); // Update screen with each newly-drawn line
-      delay(1);
+      display.print(" ");
+      display.print(DANGER_SYMBOL);
    }
-   for (i = 0; i < display.height(); i += 4)
+   display.println("ppm");
+
+   // Se c'è una condizione pericolosa, mostra un avviso lampeggiante
+   if (isDangerousCondition && blinkState)
    {
-      display.drawLine(0, 0, display.width() - 1, i, SSD1306_WHITE);
-      display.display();
-      delay(1);
-   }
-   delay(250);
-
-   display.clearDisplay();
-
-   for (i = 0; i < display.width(); i += 4)
-   {
-      display.drawLine(0, display.height() - 1, i, 0, SSD1306_WHITE);
-      display.display();
-      delay(1);
-   }
-   for (i = display.height() - 1; i >= 0; i -= 4)
-   {
-      display.drawLine(0, display.height() - 1, display.width() - 1, i, SSD1306_WHITE);
-      display.display();
-      delay(1);
-   }
-   delay(250);
-
-   display.clearDisplay();
-
-   for (i = display.width() - 1; i >= 0; i -= 4)
-   {
-      display.drawLine(display.width() - 1, display.height() - 1, i, 0, SSD1306_WHITE);
-      display.display();
-      delay(1);
-   }
-   for (i = display.height() - 1; i >= 0; i -= 4)
-   {
-      display.drawLine(display.width() - 1, display.height() - 1, 0, i, SSD1306_WHITE);
-      display.display();
-      delay(1);
-   }
-   delay(250);
-
-   display.clearDisplay();
-
-   for (i = 0; i < display.height(); i += 4)
-   {
-      display.drawLine(display.width() - 1, 0, 0, i, SSD1306_WHITE);
-      display.display();
-      delay(1);
-   }
-   for (i = 0; i < display.width(); i += 4)
-   {
-      display.drawLine(display.width() - 1, 0, i, display.height() - 1, SSD1306_WHITE);
-      display.display();
-      delay(1);
-   }
-
-   delay(2000); // Pause for 2 seconds
-}
-
-void testdrawrect(void)
-{
-   display.clearDisplay();
-
-   for (int16_t i = 0; i < display.height() / 2; i += 2)
-   {
-      display.drawRect(i, i, display.width() - 2 * i, display.height() - 2 * i, SSD1306_WHITE);
-      display.display(); // Update screen with each newly-drawn rectangle
-      delay(1);
-   }
-
-   delay(2000);
-}
-
-void testfillrect(void)
-{
-   display.clearDisplay();
-
-   for (int16_t i = 0; i < display.height() / 2; i += 3)
-   {
-      // The INVERSE color is used so rectangles alternate white/black
-      display.fillRect(i, i, display.width() - i * 2, display.height() - i * 2, SSD1306_INVERSE);
-      display.display(); // Update screen with each newly-drawn rectangle
-      delay(1);
-   }
-
-   delay(2000);
-}
-
-void testdrawcircle(void)
-{
-   display.clearDisplay();
-
-   for (int16_t i = 0; i < max(display.width(), display.height()) / 2; i += 2)
-   {
-      display.drawCircle(display.width() / 2, display.height() / 2, i, SSD1306_WHITE);
-      display.display();
-      delay(1);
-   }
-
-   delay(2000);
-}
-
-void testfillcircle(void)
-{
-   display.clearDisplay();
-
-   for (int16_t i = max(display.width(), display.height()) / 2; i > 0; i -= 3)
-   {
-      // The INVERSE color is used so circles alternate white/black
-      display.fillCircle(display.width() / 2, display.height() / 2, i, SSD1306_INVERSE);
-      display.display(); // Update screen with each newly-drawn circle
-      delay(1);
-   }
-
-   delay(2000);
-}
-
-void testdrawroundrect(void)
-{
-   display.clearDisplay();
-
-   for (int16_t i = 0; i < display.height() / 2 - 2; i += 2)
-   {
-      display.drawRoundRect(i, i, display.width() - 2 * i, display.height() - 2 * i,
-                            display.height() / 4, SSD1306_WHITE);
-      display.display();
-      delay(1);
-   }
-
-   delay(2000);
-}
-
-void testfillroundrect(void)
-{
-   display.clearDisplay();
-
-   for (int16_t i = 0; i < display.height() / 2 - 2; i += 2)
-   {
-      // The INVERSE color is used so round-rects alternate white/black
-      display.fillRoundRect(i, i, display.width() - 2 * i, display.height() - 2 * i,
-                            display.height() / 4, SSD1306_INVERSE);
-      display.display();
-      delay(1);
-   }
-
-   delay(2000);
-}
-
-void testdrawtriangle(void)
-{
-   display.clearDisplay();
-
-   for (int16_t i = 0; i < max(display.width(), display.height()) / 2; i += 5)
-   {
-      display.drawTriangle(
-          display.width() / 2, display.height() / 2 - i,
-          display.width() / 2 - i, display.height() / 2 + i,
-          display.width() / 2 + i, display.height() / 2 + i, SSD1306_WHITE);
-      display.display();
-      delay(1);
-   }
-
-   delay(2000);
-}
-
-void testfilltriangle(void)
-{
-   display.clearDisplay();
-
-   for (int16_t i = max(display.width(), display.height()) / 2; i > 0; i -= 5)
-   {
-      // The INVERSE color is used so triangles alternate white/black
-      display.fillTriangle(
-          display.width() / 2, display.height() / 2 - i,
-          display.width() / 2 - i, display.height() / 2 + i,
-          display.width() / 2 + i, display.height() / 2 + i, SSD1306_INVERSE);
-      display.display();
-      delay(1);
-   }
-
-   delay(2000);
-}
-
-void testdrawchar(void)
-{
-   display.clearDisplay();
-
-   display.setTextSize(1);              // Normal 1:1 pixel scale
-   display.setTextColor(SSD1306_WHITE); // Draw white text
-   display.setCursor(0, 0);             // Start at top-left corner
-   display.cp437(true);                 // Use full 256 char 'Code Page 437' font
-
-   // Not all the characters will fit on the display. This is normal.
-   // Library will draw what it can and the rest will be clipped.
-   for (int16_t i = 0; i < 256; i++)
-   {
-      if (i == '\n')
-         display.write(' ');
-      else
-         display.write(i);
+      display.setTextSize(1);
+      display.println("");
+      display.println("ATTENZIONE GAS ELEVATI!");
    }
 
    display.display();
-   delay(2000);
 }
 
-void testdrawstyles(void)
+/**
+ * Enters low-power idle mode
+ */
+void enterIdleMode()
 {
+   Serial.println(F("Entering idle mode"));
    display.clearDisplay();
-
-   display.setTextSize(1);              // Normal 1:1 pixel scale
-   display.setTextColor(SSD1306_WHITE); // Draw white text
-   display.setCursor(0, 0);             // Start at top-left corner
-   display.println(F("Hello, world!"));
-
-   display.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // Draw 'inverse' text
-   display.println(3.141592);
-
-   display.setTextSize(2); // Draw 2X-scale text
-   display.setTextColor(SSD1306_WHITE);
-   display.print(F("0x"));
-   display.println(0xDEADBEEF, HEX);
-
    display.display();
-   delay(2000);
+   isInIdleMode = true;
 }
 
-void testscrolltext(void)
+/**
+ * Exits idle mode and restores display
+ */
+void exitIdleMode()
+{
+   Serial.println(F("Exiting idle mode"));
+   isInIdleMode = false;
+   updateCurrentPage();
+}
+
+/**
+ * Shows splash screen with logo
+ */
+void showSplashScreen()
 {
    display.clearDisplay();
 
-   display.setTextSize(2); // Draw 2X-scale text
-   display.setTextColor(SSD1306_WHITE);
-   display.setCursor(10, 0);
-   display.println(F("DANOC sta armando per voi..."));
-   display.display(); // Show initial text
-   delay(100);
-
-   // Scroll in various directions, pausing in-between:
-   display.startscrollright(0x00, 0x0F);
-   delay(2000);
-   display.stopscroll();
-   delay(1000);
-   display.startscrollleft(0x00, 0x0F);
-   delay(2000);
-   display.stopscroll();
-   delay(1000);
-   display.startscrolldiagright(0x00, 0x07);
-   delay(2000);
-   display.startscrolldiagleft(0x00, 0x07);
-   delay(2000);
-   display.stopscroll();
-   delay(1000);
-}
-
-void testdrawbitmap(void)
-{
-   display.clearDisplay();
-
+   // Show logo centered on screen
    display.drawBitmap(
        (display.width() - LOGO_WIDTH) / 2,
        (display.height() - LOGO_HEIGHT) / 2,
        logo_bmp, LOGO_WIDTH, LOGO_HEIGHT, 1);
    display.display();
    delay(1000);
+
+   // Show scrolling welcome text
+   display.clearDisplay();
+   display.setTextSize(2);
+   display.setTextColor(SSD1306_WHITE);
+   display.setCursor(10, 0);
+   display.println(F("DANOC sta armando per voi..."));
+   display.display();
+
+   // Scroll animation
+   display.startscrollright(0x00, 0x0F);
+   delay(2000);
+   display.stopscroll();
+   delay(500);
+   display.startscrollleft(0x00, 0x0F);
+   delay(2000);
+   display.stopscroll();
+
+   // Clear display before showing first page
+   display.clearDisplay();
+   display.display();
 }
 
-#define XPOS 0 // Indexes into the 'icons' array in function below
-#define YPOS 1
-#define DELTAY 2
-
-void testanimate(const uint8_t *bitmap, uint8_t w, uint8_t h)
+/**
+ * Verifica se ci sono misurazioni pericolose e attiva il LED rosso se necessario
+ */
+void checkDangerousMeasurements()
 {
-   int8_t f, icons[NUMFLAKES][3];
+   // Controlla tutti i valori rilevanti
+   bool dangerDetected = false;
 
-   // Initialize 'snowflake' positions
-   for (f = 0; f < NUMFLAKES; f++)
+   // Controlla IAQ
+   if (bsec.iaq() > IAQ_DANGER_THRESHOLD)
    {
-      icons[f][XPOS] = random(1 - LOGO_WIDTH, display.width());
-      icons[f][YPOS] = -LOGO_HEIGHT;
-      icons[f][DELTAY] = random(1, 6);
-      Serial.print(F("x: "));
-      Serial.print(icons[f][XPOS], DEC);
-      Serial.print(F(" y: "));
-      Serial.print(icons[f][YPOS], DEC);
-      Serial.print(F(" dy: "));
-      Serial.println(icons[f][DELTAY], DEC);
+      dangerDetected = true;
    }
 
-   for (;;)
-   {                          // Loop forever...
-      display.clearDisplay(); // Clear the display buffer
+   // Controlla CO2 equivalente
+   if (bsec.co2_eq() > CO2_DANGER_THRESHOLD)
+   {
+      dangerDetected = true;
+   }
 
-      // Draw each snowflake:
-      for (f = 0; f < NUMFLAKES; f++)
+   // Controlla VOC equivalente
+   if (bsec.b_voc_eq() > VOC_DANGER_THRESHOLD)
+   {
+      dangerDetected = true;
+   }
+
+   // Controlla valore generico del gas
+   if (gas.value() > GAS_DANGER_THRESHOLD)
+   {
+      dangerDetected = true;
+   }
+
+   // Aggiorna lo stato di pericolo
+   isDangerousCondition = dangerDetected;
+
+   // Attiva il LED rosso se c'è pericolo (lampeggiante)
+   if (isDangerousCondition)
+   {
+      if (blinkState)
       {
-         display.drawBitmap(icons[f][XPOS], icons[f][YPOS], bitmap, w, h, SSD1306_WHITE);
+         nicla::leds.setColor(red);
       }
-
-      display.display(); // Show the display buffer on the screen
-      delay(200);        // Pause for 1/10 second
-
-      // Then update coordinates of each flake...
-      for (f = 0; f < NUMFLAKES; f++)
+      else
       {
-         icons[f][YPOS] += icons[f][DELTAY];
-         // If snowflake is off the bottom of the screen...
-         if (icons[f][YPOS] >= display.height())
-         {
-            // Reinitialize to a random position, just off the top
-            icons[f][XPOS] = random(1 - LOGO_WIDTH, display.width());
-            icons[f][YPOS] = -LOGO_HEIGHT;
-            icons[f][DELTAY] = random(1, 6);
-         }
+         nicla::leds.setColor(off);
       }
    }
+   else
+   {
+      nicla::leds.setColor(off);
+   }
+}
+
+/**
+ * Controlla se un valore è oltre la soglia di pericolo
+ * @param value il valore da controllare
+ * @param threshold la soglia da confrontare
+ * @return true se il valore è oltre la soglia
+ */
+bool isDangerous(float value, float threshold)
+{
+   return value > threshold;
 }
