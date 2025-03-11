@@ -67,7 +67,7 @@ SensorBSEC bsec(SENSOR_ID_BSEC);
 
 // ===== GLOBAL VARIABLES =====
 // Version info
-#define APP_VERSION "0.5"
+#define APP_VERSION "0.4"
 
 // Display state tracking
 int currentPage = 1;
@@ -76,7 +76,7 @@ const unsigned long displayRefreshInterval = 2000; // 2 seconds refresh
 
 // Power management
 unsigned long lastActivityTime = 0;
-const unsigned long idleTimeout = 30000; // 30 seconds idle timeout
+const unsigned long idleTimeout = 10000; // 10 seconds idle timeout
 bool isInIdleMode = false;
 
 // Tap detection
@@ -93,15 +93,6 @@ const float tapThreshold = 300.0;
 
 // Flag per lo stato di pericolo
 bool isDangerousCondition = false;
-
-// Variabili per il lampeggio del testo di avviso
-unsigned long lastBlinkTime = 0;
-const unsigned long blinkInterval = 500; // Lampeggia ogni 500ms (2 volte al secondo)
-bool blinkState = true;
-
-// Variabile per reset periodico del rilevamento tap
-unsigned long lastTapResetTime = 0;
-const unsigned long tapResetInterval = 60000; // Reset ogni minuto
 
 /**
  * Setup function - initializes hardware and sensors
@@ -154,14 +145,6 @@ void loop()
    unsigned long currentTime = millis();
 
    // ----- TAP DETECTION -----
-   // Reset periodicamente la baseline dell'accelerazione per evitare drift
-   if (currentTime - lastTapResetTime >= tapResetInterval)
-   {
-      previousAcceleration = accel.x() + accel.y() + accel.z() - 10.0; // Reset con margine
-      lastTapResetTime = currentTime;
-      Serial.println(F("Tap detection reset"));
-   }
-
    // Calculate acceleration magnitude
    float currentAcceleration = accel.x() + accel.y() + accel.z();
 
@@ -187,20 +170,6 @@ void loop()
    }
 
    previousAcceleration = currentAcceleration;
-
-   // ----- BLINK EFFECT -----
-   // Aggiorna lo stato del lampeggio
-   if (isDangerousCondition && currentTime - lastBlinkTime >= blinkInterval)
-   {
-      blinkState = !blinkState;
-      lastBlinkTime = currentTime;
-
-      // Aggiorna il display solo se il blink cambia e siamo in modalità attiva
-      if (!isInIdleMode)
-      {
-         updateCurrentPage();
-      }
-   }
 
    // ----- DISPLAY UPDATES -----
    // Update display when not in idle mode and refresh interval has passed
@@ -287,6 +256,16 @@ void displayPage1()
    display.print(humidity.value());
    display.println("%");
 
+   display.print("Gas: ");
+   display.print(gas.value());
+   // Aggiungi simbolo di pericolo se necessario
+   if (isDangerous(gas.value(), GAS_DANGER_THRESHOLD))
+   {
+      display.print(" ");
+      display.print(DANGER_SYMBOL);
+   }
+   display.println("ppm");
+
    float altitude = calculateAltitude(barometer.value());
    display.print("Alt: ");
    display.print(altitude);
@@ -299,8 +278,8 @@ void displayPage1()
    display.print("Passi: ");
    display.println(stepCounter.value());
 
-   // Se c'è una condizione pericolosa, mostra un avviso lampeggiante
-   if (isDangerousCondition && blinkState)
+   // Se c'è una condizione pericolosa, mostra un avviso
+   if (isDangerousCondition)
    {
       display.println("");
       display.println("ATTENZIONE GAS ELEVATI!");
@@ -364,8 +343,8 @@ void displayPage2()
    }
    display.println("ppm");
 
-   // Se c'è una condizione pericolosa, mostra un avviso lampeggiante
-   if (isDangerousCondition && blinkState)
+   // Se c'è una condizione pericolosa, mostra un avviso
+   if (isDangerousCondition)
    {
       display.setTextSize(1);
       display.println("");
@@ -468,17 +447,10 @@ void checkDangerousMeasurements()
    // Aggiorna lo stato di pericolo
    isDangerousCondition = dangerDetected;
 
-   // Attiva il LED rosso se c'è pericolo (lampeggiante)
+   // Attiva il LED rosso se c'è pericolo
    if (isDangerousCondition)
    {
-      if (blinkState)
-      {
-         nicla::leds.setColor(red);
-      }
-      else
-      {
-         nicla::leds.setColor(off);
-      }
+      nicla::leds.setColor(red);
    }
    else
    {
