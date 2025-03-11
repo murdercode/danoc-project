@@ -67,7 +67,7 @@ SensorBSEC bsec(SENSOR_ID_BSEC);
 
 // ===== GLOBAL VARIABLES =====
 // Version info
-#define APP_VERSION "0.4"
+#define APP_VERSION "0.7"
 
 // Display state tracking
 int currentPage = 1;
@@ -93,6 +93,11 @@ const float tapThreshold = 300.0;
 
 // Flag per lo stato di pericolo
 bool isDangerousCondition = false;
+
+// Variabili per il lampeggio del LED e del testo
+unsigned long lastLedToggleTime = 0;
+const unsigned long ledBlinkInterval = 500; // 500ms per un lampeggio visibile
+bool blinkState = true;                     // Stato condiviso tra LED e testo di avviso
 
 /**
  * Setup function - initializes hardware and sensors
@@ -129,8 +134,14 @@ void setup()
    // Initialize activity tracking
    lastActivityTime = millis();
 
-   // Inizializza il LED RGB della Nicla
+   // Test different LED control methods (try all possibilities)
+   // Metodo 1: Standard Arduino LED control
    pinMode(LED_BUILTIN, OUTPUT);
+   digitalWrite(LED_BUILTIN, HIGH); // Start with LED off
+
+   // Metodo 2: Nicla RGB LED control
+   nicla::begin();
+   nicla::leds.begin();
 }
 
 /**
@@ -143,6 +154,31 @@ void loop()
 
    // Get current time
    unsigned long currentTime = millis();
+
+   // ----- BLINK EFFECT FOR LED AND WARNING TEXT -----
+   if (isDangerousCondition && (currentTime - lastLedToggleTime >= ledBlinkInterval))
+   {
+      blinkState = !blinkState; // Toggle blink state for both LED and text
+      lastLedToggleTime = currentTime;
+
+      // Try multiple LED control approaches to ensure one works
+      if (blinkState)
+      {
+         // Approccio 2: Nicla RGB LED API (rosso)
+         nicla::leds.setColor(red);
+      }
+      else
+      {
+         // Approccio 2: Nicla RGB LED API (spento)
+         nicla::leds.setColor(off);
+      }
+
+      // Update display immediately to show text blinking effect if in active mode
+      if (!isInIdleMode)
+      {
+         updateCurrentPage();
+      }
+   }
 
    // ----- TAP DETECTION -----
    // Calculate acceleration magnitude
@@ -278,8 +314,8 @@ void displayPage1()
    display.print("Passi: ");
    display.println(stepCounter.value());
 
-   // Se c'è una condizione pericolosa, mostra un avviso
-   if (isDangerousCondition)
+   // Se c'è una condizione pericolosa, mostra un avviso lampeggiante
+   if (isDangerousCondition && blinkState)
    {
       display.println("");
       display.println("ATTENZIONE GAS ELEVATI!");
@@ -343,8 +379,8 @@ void displayPage2()
    }
    display.println("ppm");
 
-   // Se c'è una condizione pericolosa, mostra un avviso
-   if (isDangerousCondition)
+   // Se c'è una condizione pericolosa, mostra un avviso lampeggiante
+   if (isDangerousCondition && blinkState)
    {
       display.setTextSize(1);
       display.println("");
@@ -447,15 +483,14 @@ void checkDangerousMeasurements()
    // Aggiorna lo stato di pericolo
    isDangerousCondition = dangerDetected;
 
-   // Attiva il LED rosso se c'è pericolo
-   if (isDangerousCondition)
+   // Il controllo del LED è gestito nel loop principale per permettere il lampeggio
+   if (!isDangerousCondition)
    {
-      nicla::leds.setColor(red);
+      // Se non c'è pericolo, assicurati che LED sia spento usando entrambi i metodi
+      digitalWrite(LED_BUILTIN, HIGH); // LED OFF (high is off for standard Arduino)
+      nicla::leds.setColor(off);       // LED OFF usando l'API Nicla
    }
-   else
-   {
-      nicla::leds.setColor(off);
-   }
+   // Quando c'è pericolo, il lampeggio del LED è gestito nel loop principale
 }
 
 /**
