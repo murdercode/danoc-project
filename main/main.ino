@@ -400,7 +400,7 @@ void displayPage2()
    {
       display.setTextSize(1);
       display.println("");
-      display.println("PERICOLO! GAS!");
+      display.println("!!! PERICOLO  GAS !!!");
    }
 
    display.display();
