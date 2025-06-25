@@ -289,6 +289,24 @@ float calculateAltitude(float pressure, float seaLevelPressure = 1013.25)
 }
 
 /**
+ * Calculates dew point from temperature and humidity
+ */
+float calculateDewPoint(float temperature, float humidity)
+{
+   // Constants for Magnus formula
+   const float a = 17.27;
+   const float b = 237.7;
+
+   // Calculate gamma parameter (simplified Clausius-Clapeyron equation)
+   float gamma = (a * temperature) / (b + temperature) + log(humidity / 100.0);
+
+   // Calculate dew point
+   float dewPoint = (b * gamma) / (a - gamma);
+
+   return dewPoint;
+}
+
+/**
  * Displays environmental data (page 1)
  */
 void displayPage1()
@@ -321,6 +339,12 @@ void displayPage1()
    display.print("Baro: ");
    display.print(barometer.value());
    display.println("hPa");
+
+   // Add dew point before steps
+   float dewPoint = calculateDewPoint(temperature.value(), humidity.value());
+   display.print("P.Rugiada: ");
+   display.print(dewPoint);
+   display.println("C");
 
    display.print("Passi: ");
    display.println(stepCounter.value());
