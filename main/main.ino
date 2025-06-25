@@ -139,6 +139,18 @@ const unsigned long okLedInterval = 10000;  // 10 seconds
 const unsigned long okLedDuration = 200;    // Green LED stays on for 200ms
 bool isOkLedOn = false;
 
+// Variables for yellow LED during warm-up
+unsigned long lastYellowLedTime = 0;
+const unsigned long yellowLedInterval = 2000; // 2 seconds
+const unsigned long yellowLedDuration = 200;  // Yellow LED stays on for 200ms
+bool isYellowLedOn = false;
+
+// Variables for red LED during system problems
+unsigned long lastProblemLedTime = 0;
+const unsigned long problemLedInterval = 3000; // 3 seconds
+const unsigned long problemLedDuration = 200;  // Red LED stays on for 200ms
+bool isProblemLedOn = false;
+
 /**
  * Setup function - initializes hardware and sensors
  */
@@ -236,29 +248,67 @@ void loop()
       lastSensorResetTime = currentTime;
    }
 
-   // ----- BLINK EFFECT FOR LED AND WARNING TEXT -----
-   if (isDangerousCondition && (currentTime - lastLedToggleTime >= ledBlinkInterval))
-   {
-      blinkState = !blinkState; // Toggle blink state for both LED and text
-      lastLedToggleTime = currentTime;
-
-      // Try multiple LED control approaches to ensure one works
-      if (blinkState)
-      {
-         // Approach 2: Nicla RGB LED API (red)
+   // ----- LED CONTROL BASED ON SYSTEM STATUS -----
+   // Priority order: 1) Dangerous gas (continuous red), 2) System problems (red every 3s), 
+   // 3) Warm-up (yellow every 2s), 4) OK (green every 10s)
+   
+   if (isDangerousCondition) {
+      // Continuous red blinking for dangerous gas conditions
+      if (currentTime - lastLedToggleTime >= ledBlinkInterval) {
+         blinkState = !blinkState;
+         lastLedToggleTime = currentTime;
+         
+         if (blinkState) {
+            nicla::leds.setColor(red);
+         } else {
+            nicla::leds.setColor(off);
+         }
+         
+         // Update display immediately to show text blinking effect if in active mode
+         if (!isInIdleMode) {
+            updateCurrentPage();
+         }
+      }
+   }
+   else if (hasSystemProblems()) {
+      // Red LED blinking every 3 seconds for system problems
+      if (currentTime - lastProblemLedTime >= problemLedInterval && !isProblemLedOn) {
          nicla::leds.setColor(red);
+         isProblemLedOn = true;
+         lastProblemLedTime = currentTime;
       }
-      else
-      {
-         // Approach 2: Nicla RGB LED API (off)
+      else if (isProblemLedOn && (currentTime - lastProblemLedTime >= problemLedDuration)) {
          nicla::leds.setColor(off);
+         isProblemLedOn = false;
       }
-
-      // Update display immediately to show text blinking effect if in active mode
-      if (!isInIdleMode)
-      {
-         updateCurrentPage();
+   }
+   else if (!bme688IsWarmedUp) {
+      // Blue LED blinking every 2 seconds during warm-up
+      if (currentTime - lastYellowLedTime >= yellowLedInterval && !isYellowLedOn) {
+         nicla::leds.setColor(blue);
+         isYellowLedOn = true;
+         lastYellowLedTime = currentTime;
       }
+      else if (isYellowLedOn && (currentTime - lastYellowLedTime >= yellowLedDuration)) {
+         nicla::leds.setColor(off);
+         isYellowLedOn = false;
+      }
+   }
+   else if (isSystemOK()) {
+      // Green LED every 10 seconds when everything is OK
+      if (currentTime - lastOkLedTime >= okLedInterval && !isOkLedOn) {
+         nicla::leds.setColor(green);
+         isOkLedOn = true;
+         lastOkLedTime = currentTime;
+      }
+      else if (isOkLedOn && (currentTime - lastOkLedTime >= okLedDuration)) {
+         nicla::leds.setColor(off);
+         isOkLedOn = false;
+      }
+   }
+   else {
+      // Default: LED off
+      nicla::leds.setColor(off);
    }
 
    // ----- TAP DETECTION -----
@@ -311,30 +361,6 @@ void loop()
    // Check for dangerous conditions (only if BME688 is warmed up)
    if (bme688IsWarmedUp) {
       checkDangerousMeasurements();
-   }
-
-   // ----- GREEN LED FOR OK STATUS -----
-   // Show green LED every 10 seconds when system is OK
-   if (isSystemOK() && !isDangerousCondition) {
-      // Check if it's time to show the green LED
-      if (currentTime - lastOkLedTime >= okLedInterval && !isOkLedOn) {
-         // Turn on green LED
-         nicla::leds.setColor(green);
-         isOkLedOn = true;
-         lastOkLedTime = currentTime;
-      }
-      // Turn off green LED after duration
-      else if (isOkLedOn && (currentTime - lastOkLedTime >= okLedDuration)) {
-         nicla::leds.setColor(off);
-         isOkLedOn = false;
-      }
-   }
-   else {
-      // If system is not OK, ensure green LED is off
-      if (isOkLedOn) {
-         nicla::leds.setColor(off);
-         isOkLedOn = false;
-      }
    }
 
    delay(100); // Stabilize readings
@@ -727,6 +753,29 @@ bool isSystemOK()
                              (gasStatus.initialized && gasStatus.communicating);
    
    return essentialSensorsOK && airQualitySensorsOK;
+}
+
+/**
+ * Checks if there are system problems (sensors not working, etc.)
+ * @return true if there are system problems
+ */
+bool hasSystemProblems()
+{
+   // Check if essential sensors are not initialized or not communicating
+   bool tempProblem = !tempStatus.initialized || !tempStatus.communicating;
+   bool humProblem = !humStatus.initialized || !humStatus.communicating;
+   bool baroProblem = !baroStatus.initialized || !baroStatus.communicating;
+   
+   // During warm-up, don't consider air quality sensors as problems
+   bool airQualityProblem = false;
+   if (bme688IsWarmedUp) {
+      // Only check air quality sensors after warm-up is complete
+      bool bsecProblem = !bsecStatus.initialized || !bsecStatus.communicating;
+      bool gasProblem = !gasStatus.initialized || !gasStatus.communicating;
+      airQualityProblem = bsecProblem && gasProblem;
+   }
+   
+   return tempProblem || humProblem || baroProblem || airQualityProblem;
 }
 
 /**
