@@ -67,7 +67,7 @@ SensorBSEC bsec(SENSOR_ID_BSEC);
 
 // ===== GLOBAL VARIABLES =====
 // Version info
-#define APP_VERSION "1.0.0"
+#define APP_VERSION "0.0.10"
 
 // BME688 Sensor Warm-up Management
 // BME688 requires 30 minutes warm-up for accurate gas readings
