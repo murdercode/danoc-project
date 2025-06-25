@@ -67,7 +67,7 @@ SensorBSEC bsec(SENSOR_ID_BSEC);
 
 // ===== GLOBAL VARIABLES =====
 // Version info
-#define APP_VERSION "0.8"
+#define APP_VERSION "1.0.0"
 
 // BME688 Sensor Warm-up Management
 // BME688 requires 30 minutes warm-up for accurate gas readings
@@ -381,27 +381,27 @@ void displayPage1()
    // Header with warm-up status
    display.print("DANOC v");
    display.print(APP_VERSION);
-   display.print(" - 1/2");
+   display.print(" 1/2");
    if (!bme688IsWarmedUp) {
-      display.print(" [W]");
+      display.print("[W]");
    }
    display.println();
    display.println("-----------------");
 
    // Sensor data with validation
-   display.print(tempStatus.initialized ? "✓" : "✗");
+   display.print(tempStatus.initialized ? "OK" : "X");
    display.print(" Temp: ");
    float tempValue = getValidatedSensorValue(temperature.value(), tempStatus, -40.0, 85.0);
    display.print(tempValue);
    display.println("C");
 
-   display.print(humStatus.initialized ? "✓" : "✗");
+   display.print(humStatus.initialized ? "OK" : "X");
    display.print(" Hum: ");
    float humValue = getValidatedSensorValue(humidity.value(), humStatus, 0.0, 100.0);
    display.print(humValue);
    display.println("%");
 
-   display.print(baroStatus.initialized ? "✓" : "✗");
+   display.print(baroStatus.initialized ? "OK" : "X");
    display.print(" Baro: ");
    float baroValue = getValidatedSensorValue(barometer.value(), baroStatus, 300.0, 1100.0);
    display.print(baroValue);
@@ -458,10 +458,9 @@ void displayPage2()
       display.println(" min");
       display.println();
       display.setTextSize(1);
-      display.println("IMPORTANT:");
-      display.println("Keep in CLEAN");
-      display.println("ENVIRONMENT during");
-      display.println("calibration!");
+      display.println("IMPORTANT: Keep in");
+      display.println("CLEAN environment");
+      display.println("during calibration!");
       display.display();
       return;
    }
@@ -470,11 +469,11 @@ void displayPage2()
    Serial.println(bsec.toString()); // Debug to serial
 
    // Gas reading with status indicator (only if sensor initialized)
-   display.print(gasStatus.initialized ? "" : "✗ ");
+   display.print(gasStatus.initialized ? "" : "X ");
    if (gasStatus.initialized) {
       float gasValue = getValidatedSensorValue(gas.value(), gasStatus, 0.0, 10000.0);
       bool gasIsDangerous = isDangerous(gasValue, GAS_DANGER_THRESHOLD);
-      display.print(gasIsDangerous ? "! " : "✓ ");
+      display.print(gasIsDangerous ? "! " : "OK ");
       display.print("Gas: ");
       display.print(gasValue);
       if (gasIsDangerous) {
@@ -487,12 +486,12 @@ void displayPage2()
    }
 
    // BSEC readings with status indicators (only if sensor initialized)
-   display.print(bsecStatus.initialized ? "" : "✗ ");
+   display.print(bsecStatus.initialized ? "" : "X ");
    if (bsecStatus.initialized) {
       // IAQ reading
       float iaqValue = getValidatedSensorValue(bsec.iaq(), bsecStatus, 0.0, 500.0);
       bool iaqIsDangerous = isDangerous(iaqValue, IAQ_DANGER_THRESHOLD);
-      display.print(iaqIsDangerous ? "! " : "✓ ");
+      display.print(iaqIsDangerous ? "! " : "OK ");
       display.print("IAQ: ");
       display.print(iaqValue);
       if (iaqIsDangerous) {
@@ -504,7 +503,7 @@ void displayPage2()
       // CO2 reading
       float co2Value = bsec.co2_eq();
       bool co2IsDangerous = isDangerous(co2Value, CO2_DANGER_THRESHOLD);
-      display.print(co2IsDangerous ? "! " : "✓ ");
+      display.print(co2IsDangerous ? "! " : "OK ");
       display.print("CO2: ");
       display.print(co2Value);
       if (co2IsDangerous) {
@@ -516,7 +515,7 @@ void displayPage2()
       // VOC reading
       float vocValue = bsec.b_voc_eq();
       bool vocIsDangerous = isDangerous(vocValue, VOC_DANGER_THRESHOLD);
-      display.print(vocIsDangerous ? "! " : "✓ ");
+      display.print(vocIsDangerous ? "! " : "OK ");
       display.print("VOC: ");
       display.print(vocValue);
       if (vocIsDangerous) {
