@@ -133,6 +133,12 @@ unsigned long lastLedToggleTime = 0;
 const unsigned long ledBlinkInterval = 500; // 500ms for visible blinking
 bool blinkState = true;                     // Shared state between LED and warning text
 
+// Variables for OK status green LED
+unsigned long lastOkLedTime = 0;
+const unsigned long okLedInterval = 10000;  // 10 seconds
+const unsigned long okLedDuration = 200;    // Green LED stays on for 200ms
+bool isOkLedOn = false;
+
 /**
  * Setup function - initializes hardware and sensors
  */
@@ -305,6 +311,30 @@ void loop()
    // Check for dangerous conditions (only if BME688 is warmed up)
    if (bme688IsWarmedUp) {
       checkDangerousMeasurements();
+   }
+
+   // ----- GREEN LED FOR OK STATUS -----
+   // Show green LED every 10 seconds when system is OK
+   if (isSystemOK() && !isDangerousCondition) {
+      // Check if it's time to show the green LED
+      if (currentTime - lastOkLedTime >= okLedInterval && !isOkLedOn) {
+         // Turn on green LED
+         nicla::leds.setColor(green);
+         isOkLedOn = true;
+         lastOkLedTime = currentTime;
+      }
+      // Turn off green LED after duration
+      else if (isOkLedOn && (currentTime - lastOkLedTime >= okLedDuration)) {
+         nicla::leds.setColor(off);
+         isOkLedOn = false;
+      }
+   }
+   else {
+      // If system is not OK, ensure green LED is off
+      if (isOkLedOn) {
+         nicla::leds.setColor(off);
+         isOkLedOn = false;
+      }
    }
 
    delay(100); // Stabilize readings
@@ -669,6 +699,34 @@ void checkDangerousMeasurements()
 bool isDangerous(float value, float threshold)
 {
    return value > threshold;
+}
+
+/**
+ * Checks if all systems are operating within normal parameters
+ * @return true if all systems are OK
+ */
+bool isSystemOK()
+{
+   // If BME688 is not warmed up yet, system is not fully OK
+   if (!bme688IsWarmedUp) {
+      return false;
+   }
+   
+   // Check if there are any dangerous conditions
+   if (isDangerousCondition) {
+      return false;
+   }
+   
+   // Check if essential sensors are initialized and communicating
+   bool essentialSensorsOK = tempStatus.initialized && tempStatus.communicating &&
+                            humStatus.initialized && humStatus.communicating &&
+                            baroStatus.initialized && baroStatus.communicating;
+   
+   // BSEC and gas sensors are also important for air quality monitoring
+   bool airQualitySensorsOK = (bsecStatus.initialized && bsecStatus.communicating) ||
+                             (gasStatus.initialized && gasStatus.communicating);
+   
+   return essentialSensorsOK && airQualitySensorsOK;
 }
 
 /**
