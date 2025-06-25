@@ -114,11 +114,15 @@ unsigned long lastTapTime = 0;
 const unsigned long TAP_COOLDOWN = 500; // Minimum ms between tap detections
 
 // ===== DANGER THRESHOLDS =====
-// Definitions of dangerous gas value thresholds
+// Definitions of dangerous gas value thresholds with hysteresis
 #define IAQ_DANGER_THRESHOLD 300  // IAQ > 300 is considered harmful
+#define IAQ_SAFE_THRESHOLD 250    // IAQ < 250 to clear danger (hysteresis)
 #define CO2_DANGER_THRESHOLD 2000 // CO2 > 2000 ppm can cause headaches and concentration difficulties
+#define CO2_SAFE_THRESHOLD 1800   // CO2 < 1800 to clear danger (hysteresis)
 #define VOC_DANGER_THRESHOLD 5    // VOC > 5 ppm is considered dangerous
+#define VOC_SAFE_THRESHOLD 4      // VOC < 4 to clear danger (hysteresis)
 #define GAS_DANGER_THRESHOLD 1000 // Generic gas threshold value
+#define GAS_SAFE_THRESHOLD 900    // Gas < 900 to clear danger (hysteresis)
 #define DANGER_SYMBOL "!"         // Symbol to indicate danger on display
 
 // Flag for danger status
@@ -192,12 +196,7 @@ void setup()
    // Show sensor status after splash
    showSensorStatus();
 
-   // Test different LED control methods (try all possibilities)
-   // Method 1: Standard Arduino LED control
-   pinMode(LED_BUILTIN, OUTPUT);
-   digitalWrite(LED_BUILTIN, HIGH); // Start with LED off
-
-   // Method 2: Nicla RGB LED control
+   // Use only Nicla RGB LED control to avoid conflicts
    nicla::begin();
    nicla::leds.begin();
 }
@@ -614,30 +613,39 @@ void checkDangerousMeasurements()
    // Check BSEC values only if sensor is initialized and communicating
    if (bsecStatus.initialized && bsecStatus.communicating) {
       float iaqValue = getValidatedSensorValue(bsec.iaq(), bsecStatus, 0.0, 500.0);
-      if (iaqValue > IAQ_DANGER_THRESHOLD) {
+      // Use hysteresis: enter danger at high threshold, exit at low threshold
+      if (!isDangerousCondition && iaqValue > IAQ_DANGER_THRESHOLD) {
          dangerDetected = true;
          Serial.println(F("DANGER: IAQ threshold exceeded"));
+      } else if (isDangerousCondition && iaqValue > IAQ_SAFE_THRESHOLD) {
+         dangerDetected = true; // Stay in danger state until below safe threshold
       }
 
       float co2Value = bsec.co2_eq();
-      if (co2Value > CO2_DANGER_THRESHOLD) {
+      if (!isDangerousCondition && co2Value > CO2_DANGER_THRESHOLD) {
          dangerDetected = true;
          Serial.println(F("DANGER: CO2 threshold exceeded"));
+      } else if (isDangerousCondition && co2Value > CO2_SAFE_THRESHOLD) {
+         dangerDetected = true; // Stay in danger state until below safe threshold
       }
 
       float vocValue = bsec.b_voc_eq();
-      if (vocValue > VOC_DANGER_THRESHOLD) {
+      if (!isDangerousCondition && vocValue > VOC_DANGER_THRESHOLD) {
          dangerDetected = true;
          Serial.println(F("DANGER: VOC threshold exceeded"));
+      } else if (isDangerousCondition && vocValue > VOC_SAFE_THRESHOLD) {
+         dangerDetected = true; // Stay in danger state until below safe threshold
       }
    }
 
    // Check gas sensor if initialized and communicating
    if (gasStatus.initialized && gasStatus.communicating) {
       float gasValue = getValidatedSensorValue(gas.value(), gasStatus, 0.0, 10000.0);
-      if (gasValue > GAS_DANGER_THRESHOLD) {
+      if (!isDangerousCondition && gasValue > GAS_DANGER_THRESHOLD) {
          dangerDetected = true;
          Serial.println(F("DANGER: Gas threshold exceeded"));
+      } else if (isDangerousCondition && gasValue > GAS_SAFE_THRESHOLD) {
+         dangerDetected = true; // Stay in danger state until below safe threshold
       }
    }
 
@@ -646,8 +654,7 @@ void checkDangerousMeasurements()
 
    // LED control is handled in main loop for blinking effect
    if (!isDangerousCondition) {
-      // If no danger, ensure LED is off using both methods
-      digitalWrite(LED_BUILTIN, HIGH); // LED OFF (high is off for standard Arduino)
+      // If no danger, ensure LED is off
       nicla::leds.setColor(off);       // LED OFF using Nicla API
    }
    // When there's danger, LED blinking is handled in main loop
