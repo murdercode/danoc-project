@@ -383,7 +383,7 @@ void displayPage1()
    display.print(APP_VERSION);
    display.print(" 1/2");
    if (!bme688IsWarmedUp) {
-      display.print("[W]");
+      display.print(" W");
    }
    display.println();
    display.println("-----------------");
