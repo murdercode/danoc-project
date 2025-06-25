@@ -439,7 +439,7 @@ void displayPage2()
    display.print(APP_VERSION);
    display.print(" - 2/2");
    if (!bme688IsWarmedUp) {
-      display.print(" [W]");
+      display.print(" W");
    }
    display.println();
    display.println("-----------------");
